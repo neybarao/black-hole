@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Horizonte — buracos negros e outros abismos do cosmos</title>
-<meta name="description" content="Explore em 3D um buraco negro, um pulsar, Betelgeuse, uma anã branca, um berçário estelar e uma galáxia espiral. Descubra como funcionam e tire fotos em 4K.">
+<meta id="meta-desc" name="description" content="Explore em 3D um buraco negro, um pulsar, Betelgeuse, uma anã branca, um berçário estelar e uma galáxia espiral. Descubra como funcionam e tire fotos em 4K.">
 <meta name="theme-color" content="#030409">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,27 +23,30 @@
 
 <section id="intro">
   <div class="intro-in">
-    <p class="kicker">Uma viagem pelos objetos mais extremos do Universo</p>
+    <p class="kicker" data-i18n="kicker">Uma viagem pelos objetos mais extremos do Universo</p>
     <h1>Horizonte</h1>
-    <p class="lead">Chegue perto de um buraco negro, veja a luz se curvar, atravesse o feixe de um pulsar e descubra como funcionam os corpos celestes mais intrigantes que conhecemos.</p>
-    <button id="start" class="btn-primary">Iniciar viagem</button>
-    <p class="small">Arraste para girar · role ou faça pinça para aproximar · melhor com fones</p>
+    <p class="lead" data-i18n="lead">Chegue perto de um buraco negro, veja a luz se curvar, atravesse o feixe de um pulsar e descubra como funcionam os corpos celestes mais intrigantes que conhecemos.</p>
+    <div class="langs" role="group" aria-label="Idioma"><button data-lang="pt">PT</button><button data-lang="en">EN</button><button data-lang="es">ES</button></div>
+    <button id="start" class="btn-primary" data-i18n="start">Iniciar viagem</button>
+    <p class="small" data-i18n="controlsHint">Arraste para girar · role ou faça pinça para aproximar · melhor com fones</p>
   </div>
 </section>
 
 <header id="top">
   <a class="brand" href="#buraco-negro" aria-label="Horizonte">Horizonte</a>
   <div class="tools">
-    <button id="sound" class="ico" aria-pressed="false" title="Som ambiente" aria-label="Som ambiente">
+    <div class="lang-wrap"><button id="lang" class="ico lang-btn" data-i18n-aria="lang" aria-haspopup="true" aria-expanded="false">PT</button>
+      <div id="lang-menu" hidden><button data-lang="pt">Português</button><button data-lang="en">English</button><button data-lang="es">Español</button></div></div>
+    <button id="sound" data-i18n-aria="sound" class="ico" aria-pressed="false" title="Som ambiente" aria-label="Som ambiente">
       <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="w" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>
     </button>
-    <button id="photo-btn" class="ico" title="Modo foto" aria-label="Modo foto">
+    <button id="photo-btn" data-i18n-aria="photo" class="ico" title="Modo foto" aria-label="Modo foto">
       <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
     </button>
-    <button id="cinema" class="ico" title="Modo contemplação" aria-label="Modo contemplação">
+    <button id="cinema" data-i18n-aria="cinema" class="ico" title="Modo contemplação" aria-label="Modo contemplação">
       <svg viewBox="0 0 24 24"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/></svg>
     </button>
-    <button id="info" class="ico" title="Mostrar ou ocultar informações" aria-label="Mostrar ou ocultar informações">
+    <button id="info" data-i18n-aria="info" class="ico" title="Mostrar ou ocultar informações" aria-label="Mostrar ou ocultar informações">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
     </button>
   </div>
@@ -53,32 +56,32 @@
   <p id="p-type" class="type"></p>
   <h2 id="p-name"></h2>
   <p id="p-intro" class="intro-t"></p>
-  <button id="more" class="more">Saiba mais</button>
+  <button id="more" class="more" data-i18n="more">Saiba mais</button>
   <div class="tabs" role="tablist">
-    <button class="tab" data-tab="how" role="tab">Como funciona</button>
-    <button class="tab" data-tab="numbers" role="tab">Números</button>
-    <button class="tab" data-tab="facts" role="tab">Curiosidades</button>
+    <button class="tab" data-tab="how" role="tab" data-i18n="tabHow">Como funciona</button>
+    <button class="tab" data-tab="numbers" role="tab" data-i18n="tabNumbers">Números</button>
+    <button class="tab" data-tab="facts" role="tab" data-i18n="tabFacts">Curiosidades</button>
   </div>
   <div id="p-body" class="p-body"></div>
-  <p class="note">Cena artística, fora de escala. Valores aproximados: as estimativas variam entre estudos.</p>
+  <p class="note" data-i18n="note">Cena artística, fora de escala. Valores aproximados: as estimativas variam entre estudos.</p>
 </aside>
 
 <div id="spots"></div>
 <div id="pop" hidden>
-  <button id="pop-close" aria-label="Fechar">×</button>
+  <button id="pop-close" data-i18n-aria="close" aria-label="Fechar">×</button>
   <strong id="pop-t"></strong>
   <p id="pop-x"></p>
 </div>
 
-<p id="hint">Toque nos pontos brilhantes para saber mais</p>
+<p id="hint" data-i18n="hint">Toque nos pontos brilhantes para saber mais</p>
 
 <nav id="dock" aria-label="Corpos celestes">
-  <button id="prev" class="ico" aria-label="Anterior"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <button id="prev" data-i18n-aria="prev" class="ico" aria-label="Anterior"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
   <div id="chips"></div>
-  <button id="next" class="ico" aria-label="Próximo"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+  <button id="next" data-i18n-aria="next" class="ico" aria-label="Próximo"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
 </nav>
 
-<button id="exit-cinema" class="ico" aria-label="Sair do modo contemplação"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+<button id="exit-cinema" data-i18n-aria="exitCinema" class="ico" aria-label="Sair do modo contemplação"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 
 <section id="photo" aria-label="Modo foto">
   <div id="frame"><span class="third v1"></span><span class="third v2"></span><span class="third h1"></span><span class="third h2"></span></div>
@@ -88,9 +91,9 @@
       <button class="ratio" data-r="9:16" role="radio">9:16<small>2160×3840</small></button>
       <button class="ratio" data-r="21:9" role="radio">21:9<small>5040×2160</small></button>
     </div>
-    <button id="ph-pause" class="ph-opt" aria-pressed="false">Pausar movimento</button>
-    <button id="ph-shot" class="shutter" aria-label="Salvar imagem em 4K"><i></i></button>
-    <button id="ph-exit" class="ph-opt">Sair</button>
+    <button id="ph-pause" class="ph-opt" aria-pressed="false" data-i18n="pause">Pausar movimento</button>
+    <button id="ph-shot" data-i18n-aria="shot" class="shutter" aria-label="Salvar imagem em 4K"><i></i></button>
+    <button id="ph-exit" class="ph-opt" data-i18n="exit">Sair</button>
   </div>
   <p id="ph-status" role="status"></p>
 </section>

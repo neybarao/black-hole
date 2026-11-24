@@ -5,7 +5,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import * as S from './shaders.js';
-import { CONTENT, ORDER } from './content.js';
+import { CONTENT as CONTENT_PT, ORDER } from './content.js';
+import { CONTENT_EN } from './content-en.js';
+import { CONTENT_ES } from './content-es.js';
+import { UI, LANG_NAMES, detectLang } from './i18n.js';
+const LANGS = { pt: CONTENT_PT, en: CONTENT_EN, es: CONTENT_ES };
+let lang = detectLang();
+let CONTENT = LANGS[lang];
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -442,11 +448,31 @@ const bodies = {};
 
 // ---------------------------------------------------------------- UI
 const $ = s => document.querySelector(s);
-const T = k => ({ photoWorking: 'Gerando imagem em alta resolução…', photoSaved: 'Imagem salva:', photoFail: 'Não foi possível gerar a imagem neste dispositivo.' })[k];
+const T = k => UI[lang][k] ?? UI.pt[k];
 const panel = $('#panel'), chips = $('#chips'), spotsEl = $('#spots'), pop = $('#pop');
 let current = null, flight = null, tab = 'how', lastInteract = performance.now();
 
-chips.innerHTML = ORDER.map(id => `<button class="chip" data-id="${id}" aria-label="${CONTENT[id].name}"><span>${CONTENT[id].name}</span><small>${CONTENT[id].type}</small></button>`).join('');
+function renderChips() {
+  chips.innerHTML = ORDER.map(id => `<button class="chip${id === current ? ' on' : ''}" data-id="${id}"><span>${CONTENT[id].name}</span><small>${CONTENT[id].type}</small></button>`).join('');
+}
+
+function applyLang(l) {
+  lang = l; CONTENT = LANGS[l];
+  try { localStorage.setItem('horizonte-lang', l); } catch (e) {}
+  document.documentElement.lang = l === 'pt' ? 'pt-BR' : l;
+  document.title = T('title');
+  $('#meta-desc')?.setAttribute('content', T('desc'));
+  document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = T(el.dataset.i18n));
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', T(el.dataset.i18nAria)); el.title = T(el.dataset.i18nAria); });
+  $('#lang').textContent = l.toUpperCase();
+  document.querySelectorAll('.langs [data-lang]').forEach(b => b.setAttribute('aria-pressed', b.dataset.lang === l));
+  document.querySelectorAll('#lang-menu [data-lang]').forEach(b => b.setAttribute('aria-current', b.dataset.lang === l));
+  renderChips();
+  if (current) { renderPanel(); buildSpots(); }
+}
+document.querySelectorAll('[data-lang]').forEach(b => b.addEventListener('click', () => { applyLang(b.dataset.lang); $('#lang-menu').hidden = true; $('#lang').setAttribute('aria-expanded', 'false'); }));
+$('#lang').onclick = e => { e.stopPropagation(); const m = $('#lang-menu'); m.hidden = !m.hidden; e.currentTarget.setAttribute('aria-expanded', !m.hidden); };
+document.addEventListener('click', e => { if (!e.target.closest('.lang-wrap')) { $('#lang-menu').hidden = true; $('#lang').setAttribute('aria-expanded', 'false'); } });
 
 function renderPanel() {
   const d = CONTENT[current];
@@ -481,7 +507,8 @@ function select(id, instant = false) {
 
 function flyTo(id, instant) {
   const b = bodies[id];
-  const endPos = b.center.clone().addScaledVector(b.dir.clone().normalize(), b.dist);
+  const fit = camera.aspect < 1 ? Math.min(1.9, Math.pow(1 / camera.aspect, 0.75)) : 1;
+  const endPos = b.center.clone().addScaledVector(b.dir.clone().normalize(), b.dist * fit);
   controls.autoRotate = false;
   if (instant || reduceMotion) {
     camera.position.copy(endPos); controls.target.copy(b.center);
@@ -498,7 +525,7 @@ function flyTo(id, instant) {
 function finishFlight(b) {
   flight = null;
   camera.fov = 50; camera.updateProjectionMatrix();
-  controls.minDistance = b.min; controls.maxDistance = b.max;
+  controls.minDistance = b.min; controls.maxDistance = b.max * (camera.aspect < 1 ? 1.6 : 1);
   controls.enabled = true; controls.update();
   document.body.classList.remove('flying');
   lastInteract = performance.now();
@@ -519,6 +546,8 @@ addEventListener('keydown', e => {
   else if (e.key === 'Escape') { closePop(); document.body.classList.remove('cinema'); if (document.body.classList.contains('photo')) setPhoto(false); }
 });
 addEventListener('hashchange', () => { const id = location.hash.slice(1); if (id !== current && bodies[id]) select(id); });
+
+applyLang(lang);
 
 // pontos de interesse
 let popKey = null;
@@ -583,7 +612,7 @@ function outSize() {
 }
 function guideRect() {
   const [w, h] = outSize(), a = w / h, small = innerWidth < 760;
-  const mx = small ? 12 : 48, top = small ? 56 : 64, bottom = small ? 170 : 120;
+  const mx = small ? 12 : 48, top = small ? 56 : 64, bottom = small ? 215 : 120;
   const aw = innerWidth - mx * 2, ah = innerHeight - top - bottom;
   let gw = aw, gh = gw / a; if (gh > ah) { gh = ah; gw = gh * a; }
   return { x: (innerWidth - gw) / 2, y: top + (ah - gh) / 2, w: gw, h: gh };
