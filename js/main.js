@@ -5,11 +5,11 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import * as S from './shaders.js?v=12';
-import { CONTENT as CONTENT_PT, ORDER } from './content.js?v=12';
-import { CONTENT_EN } from './content-en.js?v=12';
-import { CONTENT_ES } from './content-es.js?v=12';
-import { UI, LANG_NAMES, detectLang } from './i18n.js?v=12';
+import * as S from './shaders.js?v=14';
+import { CONTENT as CONTENT_PT, ORDER } from './content.js?v=14';
+import { CONTENT_EN } from './content-en.js?v=14';
+import { CONTENT_ES } from './content-es.js?v=14';
+import { UI, LANG_NAMES, detectLang } from './i18n.js?v=14';
 const LANGS = { pt: CONTENT_PT, en: CONTENT_EN, es: CONTENT_ES };
 let lang = detectLang();
 let CONTENT = LANGS[lang];
@@ -60,16 +60,18 @@ const uTime = { value: 0 };
 const uPx = { value: renderer.getPixelRatio() * (innerHeight / 900) };
 
 // ---------------------------------------------------------------- helpers
+// textura de brilho calculada (sem o pontilhado de cor que o canvas do Safari aplica em gradientes)
 const glowTexture = (() => {
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const g = c.getContext('2d');
-  const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-  gr.addColorStop(0, 'rgba(255,255,255,1)');
-  gr.addColorStop(0.15, 'rgba(255,255,255,0.45)');
-  gr.addColorStop(0.45, 'rgba(255,255,255,0.08)');
-  gr.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  const N = 128, d = new Uint8Array(N * N * 4);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const r = Math.hypot(x + 0.5 - N / 2, y + 0.5 - N / 2) / (N / 2);
+    const v = r >= 1 ? 0 : Math.exp(-r * r * 9) * 0.75 + Math.exp(-r * r * 3) * 0.18 + (1 - r) * 0.07;
+    const i = (y * N + x) * 4, c = Math.round(Math.min(1, v) * 255);
+    d[i] = d[i + 1] = d[i + 2] = 255; d[i + 3] = c;
+  }
+  const t = new THREE.DataTexture(d, N, N, THREE.RGBAFormat);
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.needsUpdate = true;
+  return t;
 })();
 
 function glowSprite(color, size, intensity = 1) {
@@ -439,14 +441,21 @@ const nebulaSteps = { value: isMobile ? 36 : 64 };
     dp.push(Math.cos(th) * r + gauss() * 4, gauss() * 1.4, Math.sin(th) * r + gauss() * 4);
     dc.push(0.05, 0.035, 0.03); ds.push(rand(5, 10));
   }
-  const dustP = makePoints(dp, dc, ds, { additive: false, alpha: 0.32, sharp: 9, spin: SPIN, max: 10 }); dustP.renderOrder = 2; g.add(dustP);
-  g.add(glowSprite('#ffd9a8', 230, 0.75));
-  g.add(glowSprite('#fff1dc', 50, 1.3));
+  const dustP = makePoints(dp, dc, ds, { additive: false, alpha: 0.16, sharp: 9, spin: SPIN, max: 8 }); dustP.renderOrder = 2; g.add(dustP);
+  const diskMat = new THREE.ShaderMaterial({
+    vertexShader: S.galaxyVert, fragmentShader: S.galaxyFrag,
+    uniforms: { uTime, uR: { value: R }, uK: { value: K }, uSpin: { value: SPIN } },
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+  });
+  const diskGeo = new THREE.PlaneGeometry(R * 2.4, R * 2.4, 1, 1); diskGeo.rotateX(-Math.PI / 2);
+  const diskMesh = new THREE.Mesh(diskGeo, diskMat); diskMesh.renderOrder = 0; g.add(diskMesh);
+  g.add(glowSprite('#ffd9a8', 120, 0.3));
+  g.add(glowSprite('#fff1dc', 30, 0.7));
   const mkBase = [[0, 0], [R * 0.36, 1], [R * 0.55, 0]].map(([r, arm]) => { const th = armAngle(arm, r); return [Math.cos(th) * r, Math.sin(th) * r, r]; });
   const mks = mkBase.map(([x, z]) => marker(g, x, 0, z));
   const bulgeMk = marker(g, 0, 26, 0);
   bodies['galaxia'] = {
-    center: c, dir: V(0.15, 0.75, 1), dist: 470, min: 120, max: 2200, occluders: [],
+    center: c, dir: V(0.25, 1.9, 0.9), dist: 640, min: 120, max: 2200, occluders: [],
     spots: {
       core: () => mks[0].getWorldPosition(V()),
       bulge: () => bulgeMk.getWorldPosition(V()),

@@ -407,7 +407,8 @@ void main(){
   float t0=max(-b-h,0.0), t1=-b+h;
   if(t1<=0.0) discard;
   float dt=(t1-t0)/uSteps;
-  float t=t0+dt*hash13(vec3(gl_FragCoord.xy,1.0));
+  float ign=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(0.06711056,0.00583715))));
+  float t=t0+dt*ign;
   vec3 col=vec3(0.0); float trans=1.0;
   for(int i=0;i<128;i++){
     if(float(i)>=uSteps||trans<0.02) break;
@@ -417,7 +418,8 @@ void main(){
     float fall=smoothstep(0.95,0.3,r);
     if(fall>0.0){
       float det=snoise(p*0.045)*0.5+0.5;
-      float gas=pow(max(n*0.9+det*0.32-0.55,0.0),1.3)*fall;
+      float fine=snoise(p*0.13)*0.5+0.5;
+      float gas=pow(max(n*0.95+det*0.34+fine*0.12-0.66,0.0),1.25)*fall;
       float m=snoise(p*0.0075+3.0)*0.5+0.5;
       vec3 ec=mix(vec3(0.02,0.5,0.6),vec3(0.95,0.16,0.24),smoothstep(0.3,0.75,m));
       ec=mix(ec,vec3(1.0,0.6,0.18),smoothstep(0.55,0.95,snoise(p*0.012+9.0)*0.5+0.5)*0.75);
@@ -425,11 +427,54 @@ void main(){
       float dust=smoothstep(1.0,-2.0,pd);
       // frente de ionização: borda dos pilares iluminada pelas estrelas jovens
       float rim=exp(-max(pd,0.0)*0.5)*(1.0-dust)*smoothstep(-110.0,40.0,p.y);
-      vec3 emit=ec*gas*0.075+vec3(1.0,0.55,0.25)*rim*0.07;
+      vec3 emit=ec*gas*0.105+vec3(1.0,0.55,0.25)*rim*0.07;
       col+=trans*emit*dt;
       trans*=exp(-(dust*0.6+gas*0.012)*dt);
     }
     t+=dt;
   }
   gl_FragColor=vec4(col,1.0-trans);
+}`;
+
+// --------- Disco da galáxia: luz contínua dos braços, poeira e regiões HII ---------
+export const galaxyVert = /* glsl */`
+varying vec2 vP;
+varying vec3 vW;
+void main(){
+  vP=position.xz;
+  vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz;
+  gl_Position=projectionMatrix*viewMatrix*w;
+}`;
+export const galaxyFrag = NOISE + /* glsl */`
+uniform float uTime;
+uniform float uR;
+uniform float uK;
+uniform float uSpin;
+varying vec2 vP;
+const float PI=3.14159265;
+float armDist(float th, float r, float off){
+  float a=mod(th-uK*log(1.0+r/22.0)-off, PI);
+  return min(a, PI-a);
+}
+void main(){
+  float r=length(vP);
+  float rot=-uTime*uSpin*18.0/(r+25.0);
+  float th=atan(vP.y,vP.x)-rot;
+  vec2 q=vec2(cos(th),sin(th))*r;
+  float disk=exp(-r/(uR*0.26));
+  float bulge=exp(-r*r/(2.0*24.0*24.0));
+  float d=armDist(th,r,0.0);
+  float arm=exp(-d*d/(0.32*0.32))*smoothstep(10.0,45.0,r);
+  float n=fbm3(vec3(q*0.022,1.7))*0.5+0.5;
+  float clump=fbm3(vec3(q*0.06,4.2))*0.5+0.5;
+  float dl=armDist(th,r,-0.2);
+  float dust=exp(-dl*dl/(0.07*0.07))*smoothstep(20.0,60.0,r)*(0.5+0.6*n);
+  float hii=smoothstep(0.66,0.85,clump)*arm*smoothstep(40.0,90.0,r);
+  vec3 warm=vec3(1.0,0.78,0.5), blue=vec3(0.5,0.66,1.0);
+  vec3 col=warm*bulge*1.1;
+  col+=mix(warm,blue,smoothstep(30.0,uR*0.5,r))*disk*(0.12+arm*(0.55+0.5*clump))*0.9;
+  col+=vec3(1.0,0.3,0.5)*hii*disk*1.6;
+  col*=1.0-clamp(dust,0.0,0.85);
+  col*=smoothstep(uR*1.15,uR*0.7,r);
+  gl_FragColor=vec4(max(col,vec3(0.0)),1.0);
 }`;
