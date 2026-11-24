@@ -1,14 +1,14 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TrackballControls } from 'three/addons/controls/TrackballControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as S from './shaders.js?v=7';
-import { CONTENT as CONTENT_PT, ORDER } from './content.js?v=7';
-import { CONTENT_EN } from './content-en.js?v=7';
-import { CONTENT_ES } from './content-es.js?v=7';
-import { UI, LANG_NAMES, detectLang } from './i18n.js?v=7';
+import * as S from './shaders.js?v=8';
+import { CONTENT as CONTENT_PT, ORDER } from './content.js?v=8';
+import { CONTENT_EN } from './content-en.js?v=8';
+import { CONTENT_ES } from './content-es.js?v=8';
+import { UI, LANG_NAMES, detectLang } from './i18n.js?v=8';
 const LANGS = { pt: CONTENT_PT, en: CONTENT_EN, es: CONTENT_ES };
 let lang = detectLang();
 let CONTENT = LANGS[lang];
@@ -36,14 +36,17 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 30000);
 camera.position.set(0, 140, 1400);
 
-const controls = new OrbitControls(camera, canvas);
-controls.enableDamping = true;
-controls.dampingFactor = 0.06;
-controls.enablePan = false;
-controls.rotateSpeed = 0.55;
-controls.zoomSpeed = 0.9;
-controls.autoRotateSpeed = 0.35;
+// rotação livre em qualquer eixo: no espaço não existe "em cima"
+const controls = new TrackballControls(camera, canvas);
+controls.rotateSpeed = isMobile ? 2.4 : 2.0;
+controls.zoomSpeed = 1.0;
+controls.noPan = true;
+controls.staticMoving = false;
+controls.dynamicDampingFactor = 0.08;
+controls.keys = [];
 controls.enabled = false;
+let autoSpin = false;
+const spinQ = new THREE.Quaternion(), spinV = new THREE.Vector3();
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
@@ -142,14 +145,24 @@ const bodies = {};
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(R * s, 64, 32), mat);
   mesh.position.copy(c); scene.add(mesh);
   const tmp = V();
+  // eixo do disco projetado no plano da tela: é para onde a imagem da parte de trás do disco se curva
+  const du = V(), dv = V(); let diskUpLen = 1;
+  const diskUp = () => {
+    dv.copy(camera.position).sub(c).normalize();
+    du.set(0, 1, 0).addScaledVector(dv, -dv.y);
+    diskUpLen = du.length();
+    if (diskUpLen < 1e-3) return du.setFromMatrixColumn(camera.matrixWorld, 1);
+    // visto por baixo, a imagem da parte de trás do disco aparece do outro lado
+    return du.divideScalar(dv.y < 0 ? -diskUpLen : diskUpLen);
+  };
   const approachAngle = () => { tmp.copy(camera.position).sub(c); return Math.atan2(tmp.x, -tmp.z); };
   bodies['buraco-negro'] = {
     center: c, dir: V(0, 0.11, 1), dist: 46, min: 10, max: 600,
     occluders: [[c, 1.2 * s]],
     spots: {
       shadow: () => c.clone(),
-      ring: ({ up }) => c.clone().addScaledVector(up, 2.75 * s),
-      lens: ({ up }) => c.clone().addScaledVector(up, 4.9 * s),
+      ring: () => c.clone().addScaledVector(diskUp(), 2.75 * s),
+      lens: () => { const u = diskUp(); return diskUpLen < 0.45 ? null : c.clone().addScaledVector(u, 4.9 * s); },
       disk: () => { const a = approachAngle() + Math.PI; return c.clone().add(V(Math.cos(a), 0, Math.sin(a)).multiplyScalar(10.5 * s)); },
       doppler: () => { const a = approachAngle(); return c.clone().add(V(Math.cos(a), 0, Math.sin(a)).multiplyScalar(7 * s)); }
     }
@@ -544,14 +557,14 @@ function flyTo(id, instant) {
   const b = bodies[id];
   const fit = camera.aspect < 1 ? Math.min(1.9, Math.pow(1 / camera.aspect, 0.75)) : 1;
   const endPos = b.center.clone().addScaledVector(b.dir.clone().normalize(), b.dist * fit);
-  controls.autoRotate = false;
+  autoSpin = false;
   if (instant || reduceMotion) {
-    camera.position.copy(endPos); controls.target.copy(b.center);
+    camera.position.copy(endPos); controls.target.copy(b.center); camera.up.set(0, 1, 0); camera.lookAt(b.center);
     finishFlight(b); return;
   }
   const startPos = camera.position.clone(), d = startPos.distanceTo(endPos);
   const mid = startPos.clone().lerp(endPos, 0.5).add(V(0, d * 0.18, 0));
-  flight = { t0: performance.now(), dur: clamp(1600 + d * 1.6, 2200, 5200), startPos, endPos, mid, st: controls.target.clone(), et: b.center.clone(), b };
+  flight = { upEnd: V(0, 1, 0), t0: performance.now(), dur: clamp(1600 + d * 1.6, 2200, 5200), startPos, endPos, mid, st: controls.target.clone(), et: b.center.clone(), b };
   controls.enabled = false;
   controls.minDistance = 0; controls.maxDistance = Infinity;
   document.body.classList.add('flying');
@@ -573,8 +586,8 @@ $('#next').onclick = () => step(1);
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.dataset.tab; renderPanel(); });
 $('#more').onclick = () => panel.classList.toggle('open');
 $('#info').onclick = () => document.body.classList.toggle('no-panel');
-$('#cinema').onclick = () => { document.body.classList.add('cinema'); controls.autoRotate = !reduceMotion; closePop(); };
-$('#exit-cinema').onclick = () => { document.body.classList.remove('cinema'); controls.autoRotate = false; };
+$('#cinema').onclick = () => { document.body.classList.add('cinema'); autoSpin = !reduceMotion; closePop(); };
+$('#exit-cinema').onclick = () => { document.body.classList.remove('cinema'); autoSpin = false; };
 addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') step(1);
   else if (e.key === 'ArrowLeft') step(-1);
@@ -597,8 +610,8 @@ spotsEl.addEventListener('click', e => {
   placePop(b);
 });
 $('#pop-close').onclick = closePop;
-canvas.addEventListener('pointerdown', () => { closePop(); lastInteract = performance.now(); controls.autoRotate = document.body.classList.contains('cinema') && !reduceMotion; $('#hint').classList.add('gone'); });
-canvas.addEventListener('wheel', () => { lastInteract = performance.now(); $('#hint').classList.add('gone'); }, { passive: true });
+canvas.addEventListener('pointerdown', () => { closePop(); lastInteract = performance.now(); autoSpin = document.body.classList.contains('cinema') && !reduceMotion; $('#hint').classList.add('gone'); });
+canvas.addEventListener('wheel', () => { autoSpin = document.body.classList.contains('cinema') && !reduceMotion; lastInteract = performance.now(); $('#hint').classList.add('gone'); }, { passive: true });
 function closePop() { pop.hidden = true; popKey = null; }
 function placePop(btn) {
   if (innerWidth < 760) { pop.style.transform = ''; return; }
@@ -662,7 +675,7 @@ function layoutPhoto() {
 }
 function setPhoto(on) {
   document.body.classList.toggle('photo', on);
-  closePop(); controls.autoRotate = false; lastInteract = performance.now();
+  closePop(); autoSpin = false; lastInteract = performance.now();
   if (on) layoutPhoto();
   else if (photoPaused) $('#ph-pause').click();
 }
@@ -737,8 +750,8 @@ function updateSpots() {
   for (const k in b.spots) {
     const el = els[i++]; if (!el) break;
     const p = b.spots[k](camBasis);
-    proj.copy(p).project(camera);
-    const hidden = flight || proj.z > 1 || Math.abs(proj.x) > 1.05 || Math.abs(proj.y) > 1.05 || occluded(p, b.occluders);
+    if (p) proj.copy(p).project(camera);
+    const hidden = !p || flight || proj.z > 1 || Math.abs(proj.x) > 1.05 || Math.abs(proj.y) > 1.05 || occluded(p, b.occluders);
     el.classList.toggle('hide', !!hidden);
     if (!hidden) el.style.transform = `translate(${(proj.x * 0.5 + 0.5) * innerWidth}px,${(-proj.y * 0.5 + 0.5) * innerHeight}px)`;
   }
@@ -760,10 +773,15 @@ function frame(now) {
     camera.position.set(u * u * a.x + 2 * u * e * m.x + e * e * z.x, u * u * a.y + 2 * u * e * m.y + e * e * z.y, u * u * a.z + 2 * u * e * m.z + e * e * z.z);
     controls.target.copy(flight.st).lerp(flight.et, easeIO(clamp(k * 1.35, 0, 1)));
     camera.fov = 50 + Math.sin(Math.PI * e) * 16; camera.updateProjectionMatrix();
+    camera.up.lerp(flight.upEnd, Math.min(1, e * 1.2)).normalize();
     camera.lookAt(controls.target);
     if (k >= 1) finishFlight(flight.b);
   } else if (controls.enabled) {
-    if (!controls.autoRotate && !reduceMotion && !document.body.classList.contains('photo') && now - lastInteract > 9000) controls.autoRotate = true;
+    if (!autoSpin && !reduceMotion && !document.body.classList.contains('photo') && now - lastInteract > 9000) autoSpin = true;
+    if (autoSpin) {
+      spinQ.setFromAxisAngle(spinV.copy(camera.up).normalize(), dt * 0.07);
+      camera.position.sub(controls.target).applyQuaternion(spinQ).add(controls.target);
+    }
     controls.update();
   }
 
@@ -792,6 +810,7 @@ function resize() {
   composer.setPixelRatio(pixelRatio);
   composer.setSize(innerWidth, innerHeight);
   uPx.value = pixelRatio * (innerHeight / 900);
+  controls.handleResize();
   if (document.body.classList.contains('photo')) layoutPhoto();
 }
 addEventListener('resize', resize);
