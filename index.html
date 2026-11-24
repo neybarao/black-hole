@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Horizonte — buracos negros e outros abismos do cosmos</title>
+<meta name="description" content="Explore em 3D um buraco negro, um pulsar, Betelgeuse, uma anã branca, um berçário estelar e uma galáxia espiral. Descubra como funcionam e tire fotos em 4K.">
+<meta name="theme-color" content="#030409">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three/build/three.module.js",
+  "three/addons/": "./vendor/three/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<canvas id="scene" aria-label="Cena 3D do espaço"></canvas>
+
+<section id="intro">
+  <div class="intro-in">
+    <p class="kicker">Uma viagem pelos objetos mais extremos do Universo</p>
+    <h1>Horizonte</h1>
+    <p class="lead">Chegue perto de um buraco negro, veja a luz se curvar, atravesse o feixe de um pulsar e descubra como funcionam os corpos celestes mais intrigantes que conhecemos.</p>
+    <button id="start" class="btn-primary">Iniciar viagem</button>
+    <p class="small">Arraste para girar · role ou faça pinça para aproximar · melhor com fones</p>
+  </div>
+</section>
+
+<header id="top">
+  <a class="brand" href="#buraco-negro" aria-label="Horizonte">Horizonte</a>
+  <div class="tools">
+    <button id="sound" class="ico" aria-pressed="false" title="Som ambiente" aria-label="Som ambiente">
+      <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="w" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>
+    </button>
+    <button id="photo-btn" class="ico" hidden title="Modo foto" aria-label="Modo foto">
+      <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+    </button>
+    <button id="cinema" class="ico" title="Modo contemplação" aria-label="Modo contemplação">
+      <svg viewBox="0 0 24 24"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/></svg>
+    </button>
+    <button id="info" class="ico" title="Mostrar ou ocultar informações" aria-label="Mostrar ou ocultar informações">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
+    </button>
+  </div>
+</header>
+
+<aside id="panel" aria-live="polite">
+  <p id="p-type" class="type"></p>
+  <h2 id="p-name"></h2>
+  <p id="p-intro" class="intro-t"></p>
+  <button id="more" class="more">Saiba mais</button>
+  <div class="tabs" role="tablist">
+    <button class="tab" data-tab="how" role="tab">Como funciona</button>
+    <button class="tab" data-tab="numbers" role="tab">Números</button>
+    <button class="tab" data-tab="facts" role="tab">Curiosidades</button>
+  </div>
+  <div id="p-body" class="p-body"></div>
+  <p class="note">Cena artística, fora de escala. Valores aproximados: as estimativas variam entre estudos.</p>
+</aside>
+
+<div id="spots"></div>
+<div id="pop" hidden>
+  <button id="pop-close" aria-label="Fechar">×</button>
+  <strong id="pop-t"></strong>
+  <p id="pop-x"></p>
+</div>
+
+<p id="hint">Toque nos pontos brilhantes para saber mais</p>
+
+<nav id="dock" aria-label="Corpos celestes">
+  <button id="prev" class="ico" aria-label="Anterior"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <div id="chips"></div>
+  <button id="next" class="ico" aria-label="Próximo"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+</nav>
+
+<button id="exit-cinema" class="ico" aria-label="Sair do modo contemplação"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+
+<section id="photo" aria-label="Modo foto">
+  <div id="frame"><span class="third v1"></span><span class="third v2"></span><span class="third h1"></span><span class="third h2"></span></div>
+  <div class="ph-bar">
+    <div class="ph-ratios" role="radiogroup" aria-label="Formato">
+      <button class="ratio" data-r="16:9" role="radio">16:9<small>3840×2160</small></button>
+      <button class="ratio" data-r="9:16" role="radio">9:16<small>2160×3840</small></button>
+      <button class="ratio" data-r="21:9" role="radio">21:9<small>5040×2160</small></button>
+    </div>
+    <button id="ph-pause" class="ph-opt" aria-pressed="false">Pausar movimento</button>
+    <button id="ph-shot" class="shutter" aria-label="Salvar imagem em 4K"><i></i></button>
+    <button id="ph-exit" class="ph-opt">Sair</button>
+  </div>
+  <p id="ph-status" role="status"></p>
+</section>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
