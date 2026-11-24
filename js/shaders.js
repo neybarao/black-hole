@@ -135,7 +135,7 @@ vec4 disk(vec3 hit, float r, vec3 dir){
   float n=fbm(q)*0.5+0.5;
   float streak=snoise(vec3(cos(ang)*0.9,sin(ang)*0.9,r*4.0))*0.5+0.5;
   float tex=mix(n,streak,0.45);
-  tex=pow(tex,1.6)*1.9;
+  tex=pow(clamp(tex,0.0,1.0),1.6)*1.9;
 
   float prof=pow(r/DISK_IN,-0.75)*pow(max(1.0-sqrt(DISK_IN/r),0.0),0.25)*2.6;
   // Doppler relativístico + desvio gravitacional
@@ -203,6 +203,7 @@ attribute float seed;
 uniform float uTime;
 uniform float uPx;
 uniform float uSpin;
+uniform float uMax;
 varying vec3 vColor;
 varying float vTw;
 void main(){
@@ -214,7 +215,7 @@ void main(){
     pos.xz=mat2(cs,-sn,sn,cs)*pos.xz;
   }
   vec4 mv=modelViewMatrix*vec4(pos,1.0);
-  gl_PointSize=clamp(size*uPx*(300.0/-mv.z),0.0,256.0);
+  gl_PointSize=clamp(min(size*uPx*(300.0/-mv.z),uMax*uPx),0.0,256.0);
   vColor=color;
   vTw=0.75+0.25*sin(uTime*(0.6+seed*2.0)+seed*40.0);
   gl_Position=projectionMatrix*mv;
@@ -314,6 +315,7 @@ void main(){
 export const beamFrag = NOISE + /* glsl */`
 uniform float uTime;
 uniform vec3 uColor;
+uniform float uSoft;
 varying vec2 vUv;
 varying vec3 vN;
 varying vec3 vW;
@@ -321,11 +323,20 @@ void main(){
   vec3 V=normalize(cameraPosition-vW);
   float facing=abs(dot(normalize(vN),V));
   float along=vUv.y; // 1 = ponta próxima à estrela
-  float fade=pow(along,2.2);
-  float n=snoise(vec3(vUv.x*6.0,vUv.y*10.0-uTime*4.0,0.0))*0.5+0.5;
-  float a=pow(facing,1.6)*fade*(0.55+0.45*n);
-  gl_FragColor=vec4(uColor*a*1.6,1.0);
+  float fade=pow(along,1.8)*smoothstep(1.0,0.97,along);
+  // pulsos de partículas viajando para fora ao longo do feixe
+  float pulse=clamp(snoise(vec3(along*16.0+uTime*3.5,0.0,0.0))*0.5+0.5,0.0,1.0);
+  float fil=clamp(snoise(vec3(along*3.0,vW.x*0.05,vW.z*0.05))*0.5+0.5,0.0,1.0);
+  float a=pow(facing,uSoft)*fade*(0.45+0.4*pulse+0.15*fil);
+  gl_FragColor=vec4(max(uColor*a,vec3(0.0)),1.0);
 }`;
+
+// remove pixels inválidos (NaN/negativos) antes do bloom, que os espalharia em cruz
+export const sanitizeShader = {
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+  fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c=texture2D(tDiffuse,vUv); if(any(isnan(c))||any(isinf(c))) c=vec4(0.0,0.0,0.0,1.0); gl_FragColor=vec4(clamp(c.rgb,0.0,60.0),1.0); }'
+};
 
 // --------- Linhas de campo ---------
 export const lineVert = /* glsl */`
@@ -366,4 +377,59 @@ void main(){
   float rim=pow(1.0-clamp(dot(N,V),0.0,1.0),3.0);
   vec3 outc=col*(0.03+diff*1.15)+vec3(0.3,0.55,1.0)*rim*(0.25+diff*0.9);
   gl_FragColor=vec4(outc,1.0);
+}`;
+
+// --------- Nebulosa volumétrica (emissão + absorção, pilares de poeira) ---------
+export const nebulaFrag = NOISE + /* glsl */`
+uniform vec3 uCenter;
+uniform float uR;
+uniform float uTime;
+uniform float uSteps;
+varying vec3 vWorld;
+
+float capsule(vec3 p, vec3 a, vec3 b, float ra, float rb){
+  vec3 ba=b-a; float h=clamp(dot(p-a,ba)/dot(ba,ba),0.0,1.0);
+  return length(p-a-ba*h)-mix(ra,rb,h);
+}
+float pillars(vec3 p){
+  vec3 q=p; q.x-=sin((p.y+95.0)*0.022)*6.0;
+  float d=capsule(q,vec3(-45.0,-120.0,0.0),vec3(-30.0,42.0,8.0),21.0,9.0);
+  d=min(d,capsule(q,vec3(18.0,-120.0,-12.0),vec3(12.0,2.0,-6.0),15.0,7.0));
+  d=min(d,capsule(q,vec3(62.0,-120.0,6.0),vec3(55.0,-32.0,2.0),11.0,5.5));
+  return d+snoise(p*0.07)*4.5+snoise(p*0.18)*1.6;
+}
+void main(){
+  vec3 ro=cameraPosition-uCenter;
+  vec3 rd=normalize(vWorld-cameraPosition);
+  float b=dot(ro,rd), c=dot(ro,ro)-uR*uR, h=b*b-c;
+  if(h<0.0) discard;
+  h=sqrt(h);
+  float t0=max(-b-h,0.0), t1=-b+h;
+  if(t1<=0.0) discard;
+  float dt=(t1-t0)/uSteps;
+  float t=t0+dt*hash13(vec3(gl_FragCoord.xy,1.0));
+  vec3 col=vec3(0.0); float trans=1.0;
+  for(int i=0;i<128;i++){
+    if(float(i)>=uSteps||trans<0.02) break;
+    vec3 p=ro+rd*t;
+    float n=fbm3(p*0.011+vec3(0.0,uTime*0.004,0.0))*0.5+0.5;
+    float r=length(p*vec3(1.0,1.3,1.5))/uR+(0.5-n)*0.45;
+    float fall=smoothstep(0.95,0.3,r);
+    if(fall>0.0){
+      float det=snoise(p*0.045)*0.5+0.5;
+      float gas=pow(max(n*0.9+det*0.32-0.55,0.0),1.3)*fall;
+      float m=snoise(p*0.0075+3.0)*0.5+0.5;
+      vec3 ec=mix(vec3(0.02,0.5,0.6),vec3(0.95,0.16,0.24),smoothstep(0.3,0.75,m));
+      ec=mix(ec,vec3(1.0,0.6,0.18),smoothstep(0.55,0.95,snoise(p*0.012+9.0)*0.5+0.5)*0.75);
+      float pd=pillars(p);
+      float dust=smoothstep(1.0,-2.0,pd);
+      // frente de ionização: borda dos pilares iluminada pelas estrelas jovens
+      float rim=exp(-max(pd,0.0)*0.5)*(1.0-dust)*smoothstep(-110.0,40.0,p.y);
+      vec3 emit=ec*gas*0.075+vec3(1.0,0.55,0.25)*rim*0.07;
+      col+=trans*emit*dt;
+      trans*=exp(-(dust*0.6+gas*0.012)*dt);
+    }
+    t+=dt;
+  }
+  gl_FragColor=vec4(col,1.0-trans);
 }`;

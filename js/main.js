@@ -4,11 +4,12 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as S from './shaders.js?v=8';
-import { CONTENT as CONTENT_PT, ORDER } from './content.js?v=8';
-import { CONTENT_EN } from './content-en.js?v=8';
-import { CONTENT_ES } from './content-es.js?v=8';
-import { UI, LANG_NAMES, detectLang } from './i18n.js?v=8';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import * as S from './shaders.js?v=12';
+import { CONTENT as CONTENT_PT, ORDER } from './content.js?v=12';
+import { CONTENT_EN } from './content-en.js?v=12';
+import { CONTENT_ES } from './content-es.js?v=12';
+import { UI, LANG_NAMES, detectLang } from './i18n.js?v=12';
 const LANGS = { pt: CONTENT_PT, en: CONTENT_EN, es: CONTENT_ES };
 let lang = detectLang();
 let CONTENT = LANGS[lang];
@@ -50,6 +51,7 @@ const spinQ = new THREE.Quaternion(), spinV = new THREE.Vector3();
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new ShaderPass(S.sanitizeShader));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.7, 0.5, 0.85);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
@@ -75,7 +77,7 @@ function glowSprite(color, size, intensity = 1) {
   const s = new THREE.Sprite(m); s.scale.set(size, size, 1); return s;
 }
 
-function makePoints(pos, col, size, { additive = true, alpha = 1, sharp = 14, spin = 0 } = {}) {
+function makePoints(pos, col, size, { additive = true, alpha = 1, sharp = 14, spin = 0, max = 6 } = {}) {
   const n = size.length;
   const g = new THREE.BufferGeometry();
   const seed = new Float32Array(n); for (let i = 0; i < n; i++) seed[i] = Math.random();
@@ -85,7 +87,7 @@ function makePoints(pos, col, size, { additive = true, alpha = 1, sharp = 14, sp
   g.setAttribute('seed', new THREE.Float32BufferAttribute(seed, 1));
   const m = new THREE.ShaderMaterial({
     vertexShader: S.pointsVert, fragmentShader: S.pointsFrag,
-    uniforms: { uTime, uPx, uAlpha: { value: alpha }, uSharp: { value: sharp }, uSpin: { value: spin } },
+    uniforms: { uTime, uPx, uAlpha: { value: alpha }, uSharp: { value: sharp }, uSpin: { value: spin }, uMax: { value: max } },
     transparent: true, depthWrite: false,
     blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending
   });
@@ -128,7 +130,7 @@ sky.renderOrder = -10; sky.frustumCulled = false; scene.add(sky);
     col.push(...(warm < 0.3 ? [1.4, 1.0, 0.75] : warm < 0.8 ? [1.2, 1.2, 1.3] : [0.8, 0.95, 1.6]));
     size.push(rand(1.5, 4.5));
   }
-  scene.add(makePoints(pos, col, size, { sharp: 30 }));
+  scene.add(makePoints(pos, col, size, { sharp: 30, max: 3.5 }));
 }
 
 // ---------------------------------------------------------------- corpos
@@ -175,21 +177,25 @@ const bodies = {};
   const g = new THREE.Group(); g.position.copy(c); scene.add(g);
   const spin = new THREE.Group(); g.add(spin);
   const tilt = new THREE.Group(); tilt.rotation.z = 0.55; spin.add(tilt);
-  const star = new THREE.Mesh(new THREE.SphereGeometry(1.6, 64, 32), starMaterial({ c1: [0.5, 0.75, 1.8], c2: [1.6, 1.9, 2.8], c3: [3.2, 3.3, 3.8], scale: 3, gain: 1.4, limb: 0.35 }));
+  const star = new THREE.Mesh(new THREE.SphereGeometry(1.6, 64, 32), starMaterial({ c1: [0.18, 0.28, 0.8], c2: [0.55, 0.72, 1.35], c3: [1.1, 1.25, 1.8], scale: 3.5, gain: 0.85, limb: 0.5 }));
   spin.add(star);
-  g.add(glowSprite('#7fa8ff', 34, 1.3));
-  const flash = glowSprite('#d8e6ff', 90, 2.2); flash.material.opacity = 0; g.add(flash);
+  g.add(glowSprite('#7fa8ff', 10, 0.7));
+  g.add(glowSprite('#5a6fd8', 40, 0.25));
+  const flash = glowSprite('#d8e6ff', 55, 1.3); flash.material.opacity = 0; g.add(flash);
 
-  const beamMat = new THREE.ShaderMaterial({
+  const beamMat = (color, soft) => new THREE.ShaderMaterial({
     vertexShader: S.beamVert, fragmentShader: S.beamFrag,
-    uniforms: { uTime, uColor: { value: V(0.55, 0.7, 1.4) } },
+    uniforms: { uTime, uColor: { value: V(...color) }, uSoft: { value: soft } },
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide
   });
-  const beamGeo = new THREE.CylinderGeometry(0.3, 7.5, 90, 48, 1, true); beamGeo.translate(0, -45, 0);
-  const b1 = new THREE.Mesh(beamGeo, beamMat); b1.rotation.x = Math.PI;
-  const b2 = new THREE.Mesh(beamGeo, beamMat);
-  tilt.add(b1, b2);
-  for (const y of [2.2, -2.2]) { const s = glowSprite('#bcd0ff', 8, 1.5); s.position.y = y; tilt.add(s); }
+  const core = new THREE.CylinderGeometry(0.15, 2.2, 95, 48, 1, true); core.translate(0, -47.5, 0);
+  const halo = new THREE.CylinderGeometry(0.4, 6.5, 95, 48, 1, true); halo.translate(0, -47.5, 0);
+  const coreM = beamMat([0.7, 0.82, 1.5], 3.0), haloM = beamMat([0.22, 0.3, 0.95], 2.2);
+  for (const flip of [0, Math.PI]) {
+    const a = new THREE.Mesh(core, coreM), h = new THREE.Mesh(halo, haloM);
+    a.rotation.x = h.rotation.x = flip; tilt.add(a, h);
+  }
+  for (const y of [2.2, -2.2]) { const s = glowSprite('#bcd0ff', 5, 1.0); s.position.y = y; tilt.add(s); }
 
   const lineMat = new THREE.ShaderMaterial({
     vertexShader: S.lineVert, fragmentShader: S.lineFrag,
@@ -214,16 +220,39 @@ const bodies = {};
   const axisGeo = new THREE.BufferGeometry().setFromPoints([V(0, -16, 0), V(0, 16, 0)]);
   g.add(new THREE.Line(axisGeo, new THREE.LineDashedMaterial({ color: 0x8fa3c8, dashSize: 0.8, gapSize: 0.6, transparent: true, opacity: 0.45 })).computeLineDistances());
 
-  // nebulosa de vento do pulsar
-  const n = isMobile ? 1800 : 3500, pos = [], col = [], size = [];
-  for (let i = 0; i < n; i++) {
-    const a = Math.random() * Math.PI * 2, r = 5 + Math.abs(gauss()) * 14;
-    pos.push(Math.cos(a) * r, gauss() * (1.5 + r * 0.12), Math.sin(a) * r);
-    const t = Math.random();
-    col.push(0.25 + t * 0.4, 0.3 + t * 0.2, 0.9);
-    size.push(rand(2, 6));
+  // nebulosa de vento do pulsar, inspirada no Caranguejo: anéis equatoriais, névoa em toro e jatos polares
+  const wind = new THREE.Group(); g.add(wind);
+  const q = isMobile ? 0.5 : 1;
+  {
+    const pos = [], col = [], size = [];
+    [[6.5, 1400, [0.75, 0.9, 1.5]], [10.5, 1600, [0.5, 0.65, 1.3]], [15.5, 1800, [0.55, 0.45, 1.2]]].forEach(([R, n, c]) => {
+      for (let i = 0; i < n * q; i++) {
+        const a = Math.random() * Math.PI * 2, r = R + gauss() * R * 0.035 + Math.sin(a * 5) * 0.4;
+        pos.push(Math.cos(a) * r, gauss() * 0.25, Math.sin(a) * r);
+        const k = rand(0.5, 1.1); col.push(c[0] * k, c[1] * k, c[2] * k); size.push(rand(0.6, 1.5));
+      }
+    });
+    wind.add(makePoints(pos, col, size, { alpha: 0.7, sharp: 22, max: 3 }));
   }
-  g.add(makePoints(pos, col, size, { alpha: 0.35 }));
+  {
+    const pos = [], col = [], size = [];
+    for (let i = 0; i < 3500 * q; i++) {
+      const a = Math.random() * Math.PI * 2, r = 4 + Math.abs(gauss()) * 9;
+      pos.push(Math.cos(a) * r, gauss() * (0.6 + r * 0.08), Math.sin(a) * r);
+      const t = Math.random(); col.push(0.25 + t * 0.3, 0.28 + t * 0.2, 0.85); size.push(rand(0.8, 2));
+    }
+    wind.add(makePoints(pos, col, size, { alpha: 0.28, sharp: 18, max: 4.5 }));
+  }
+  {
+    const pos = [], col = [], size = [];
+    for (let i = 0; i < 1600 * q; i++) {
+      const sgn = Math.random() < 0.65 ? 1 : -1, t = Math.random(), y = 2 + t * 13;
+      const sp = 0.25 + t * 1.3, bend = t * t * 2.2;
+      pos.push(gauss() * sp + bend * sgn, y * sgn, gauss() * sp);
+      col.push(0.6, 0.75, 1.5); size.push(rand(0.6, 1.4));
+    }
+    g.add(makePoints(pos, col, size, { alpha: 0.6, sharp: 22, max: 3 }));
+  }
 
   const beamMk = marker(tilt, 0, 30, 0), fieldMk = marker(tilt, 12.5, 0, 0), axisMk = marker(g, 0, 15, 0);
   const beamDir = V(), toCam = V();
@@ -238,6 +267,7 @@ const bodies = {};
     },
     update(t) {
       spin.rotation.y = t * (Math.PI * 2 / 2.8);
+      wind.rotation.y = t * 0.05;
       tilt.updateMatrixWorld();
       beamDir.set(0, 1, 0).transformDirection(tilt.matrixWorld);
       toCam.copy(camera.position).sub(c).normalize();
@@ -266,8 +296,8 @@ const bodies = {};
     if (Math.random() < 0.8) { pd.push(p.x, p.y, p.z); cd.push(0.1, 0.045, 0.03); sd.push(rand(8, 18)); }
     else { pl.push(p.x, p.y, p.z); cl.push(1.0, 0.42, 0.15); sl.push(rand(3, 8)); }
   }
-  const dark = makePoints(pd, cd, sd, { additive: false, alpha: 0.42, sharp: 9 }); dark.renderOrder = 2; dustG.add(dark);
-  const lit = makePoints(pl, cl, sl, { alpha: 0.25 }); lit.renderOrder = 3; dustG.add(lit);
+  const dark = makePoints(pd, cd, sd, { additive: false, alpha: 0.42, sharp: 9, max: 28 }); dark.renderOrder = 2; dustG.add(dark);
+  const lit = makePoints(pl, cl, sl, { alpha: 0.25, max: 4 }); lit.renderOrder = 3; dustG.add(lit);
 
   // órbita de Júpiter em escala (raio ~800 R☉ → 1 UA ≈ 10,75 unidades)
   const jr = 5.2 * 10.75, ring = [];
@@ -303,25 +333,35 @@ const bodies = {};
 {
   const c = V(260, -70, 380), R = 1.8;
   const g = new THREE.Group(); g.position.copy(c); scene.add(g);
-  g.add(new THREE.Mesh(new THREE.SphereGeometry(R, 64, 32), starMaterial({ c1: [1.5, 1.7, 2.3], c2: [2.3, 2.5, 3.1], c3: [3.2, 3.3, 3.7], scale: 3, gain: 1.1, limb: 0.3 })));
-  g.add(glowSprite('#b9d0ff', 24, 1.15));
-  scene.add(glowShell(c, R * 0.98, R * 3, [0.55, 0.72, 1.2], 3.0, 0.9));
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(R, 64, 32), starMaterial({ c1: [0.35, 0.45, 0.8], c2: [0.7, 0.8, 1.15], c3: [1.15, 1.25, 1.6], scale: 3.2, gain: 0.8, limb: 0.55 })));
+  g.add(glowSprite('#b9d0ff', 9, 0.45));
+  scene.add(glowShell(c, R * 0.98, R * 1.6, [0.55, 0.72, 1.2], 3.5, 0.3));
 
   const earthMat = new THREE.ShaderMaterial({ vertexShader: S.starVert, fragmentShader: S.earthFrag, uniforms: { uTime, uLight: { value: c } } });
   const earth = new THREE.Mesh(new THREE.SphereGeometry(R, 64, 32), earthMat);
   earth.position.set(12, 0.8, -3); earth.rotation.z = 0.41; g.add(earth);
 
-  const n = isMobile ? 3000 : 6000, pos = [], col = [], size = [];
-  for (let i = 0; i < n; i++) {
-    const d = V(gauss(), gauss() * 1.25, gauss()).normalize();
-    const r = 30 + gauss() * 2.5 + Math.sin(d.x * 6 + d.y * 4) * 3;
-    const p = d.multiplyScalar(r); p.y *= 1.2;
-    pos.push(p.x, p.y, p.z);
-    const t = Math.random();
-    col.push(...(t < 0.55 ? [0.15, 0.6, 0.65] : t < 0.85 ? [0.9, 0.3, 0.4] : [0.5, 0.4, 0.9]));
-    size.push(rand(4, 10));
+  const shell = new THREE.Group(); g.add(shell);
+  {
+    const n = isMobile ? 7000 : 16000, pos = [], col = [], size = [];
+    for (let i = 0; i < n; i++) {
+      const d = V(gauss(), gauss() * 1.25, gauss()).normalize();
+      const wav = Math.sin(d.x * 7 + d.y * 5) * 2.2 + Math.sin(d.z * 9 - d.y * 3) * 1.4;
+      const inner = Math.random() < 0.45;
+      const r = (inner ? 24 : 31) + wav + gauss() * (inner ? 0.6 : 1.0);
+      const p = d.multiplyScalar(r); p.y *= 1.2;
+      pos.push(p.x, p.y, p.z);
+      const c = inner ? [0.2, 0.75, 0.8] : (Math.random() < 0.7 ? [0.95, 0.32, 0.42] : [0.55, 0.4, 0.95]);
+      const k = rand(0.5, 1.2); col.push(c[0] * k, c[1] * k, c[2] * k); size.push(rand(0.7, 1.8));
+    }
+    shell.add(makePoints(pos, col, size, { alpha: 1, sharp: 16, max: 3.2 }));
+    const hp = [], hc = [], hs = [];
+    for (let i = 0; i < 900; i++) {
+      const d = V(gauss(), gauss() * 1.25, gauss()).normalize().multiplyScalar(rand(18, 33)); d.y *= 1.2;
+      hp.push(d.x, d.y, d.z); const t = Math.random() < 0.5; hc.push(t ? 0.1 : 0.5, t ? 0.45 : 0.15, t ? 0.5 : 0.3); hs.push(rand(14, 28));
+    }
+    shell.add(makePoints(hp, hc, hs, { alpha: 0.05, sharp: 6, max: 160 }));
   }
-  const shell = makePoints(pos, col, size, { alpha: 0.32 }); g.add(shell);
   const tmp = V();
   bodies['ana-branca'] = {
     center: c, dir: V(-0.55, 0.15, 1), dist: 21, min: 5, max: 260,
@@ -335,67 +375,30 @@ const bodies = {};
   };
 }
 
-// ---- Berçário estelar
+// ---- Berçário estelar (volume calculado por raio)
+const nebulaSteps = { value: isMobile ? 36 : 64 };
 {
-  const c = V(-380, 160, 560);
+  const c = V(-380, 160, 560), R = 170;
   const g = new THREE.Group(); g.position.copy(c); scene.add(g);
-  const pal = [[0.08, 0.5, 0.55], [0.9, 0.55, 0.22], [0.8, 0.22, 0.32], [0.25, 0.32, 0.85], [0.08, 0.5, 0.55]];
-  const nGlow = isMobile ? 3500 : 8000, gp = [], gc = [], gs = [];
-  const blobs = Array.from({ length: 26 }, () => ({ p: V(gauss() * 70, gauss() * 45 + 10, gauss() * 40 - 20), r: rand(22, 55), c: pal[Math.floor(Math.random() * pal.length)] }));
-  for (let i = 0; i < nGlow; i++) {
-    const b = blobs[i % blobs.length];
-    gp.push(b.p.x + gauss() * b.r * 0.55, b.p.y + gauss() * b.r * 0.45, b.p.z + gauss() * b.r * 0.4);
-    const k = rand(0.6, 1.2); gc.push(b.c[0] * k, b.c[1] * k, b.c[2] * k);
-    gs.push(rand(18, 48));
-  }
-  const glow = makePoints(gp, gc, gs, { alpha: 0.13, sharp: 8 }); glow.renderOrder = 1; g.add(glow);
-
-  const pillars = [
-    { a: V(-45, -95, 0), b: V(-28, 45, 8), r0: 20, r1: 8 },
-    { a: V(18, -95, -12), b: V(12, 5, -6), r0: 14, r1: 6 },
-    { a: V(62, -95, 6), b: V(55, -30, 2), r0: 10, r1: 5 }
-  ];
-  const L = V(0.25, 0.85, 0.45).normalize();
-  const nDust = isMobile ? 5000 : 11000, dp = [], dc = [], ds = [], rp = [], rc = [], rs = [];
-  const ax = V(), u = V(), w = V(), q = V();
-  for (let i = 0; i < nDust; i++) {
-    const P = pillars[i % 3], t = Math.pow(Math.random(), 0.8);
-    ax.copy(P.a).lerp(P.b, t); ax.x += Math.sin(t * 3.2) * 6;
-    const rr = P.r0 + (P.r1 - P.r0) * t;
-    const ang = Math.random() * Math.PI * 2;
-    u.set(Math.cos(ang), 0, Math.sin(ang));
-    const rad = rr * Math.min(Math.abs(gauss()) * 0.5, 1.1);
-    q.copy(ax).addScaledVector(u, rad); q.y += gauss() * 2;
-    dp.push(q.x, q.y, q.z); dc.push(0.075, 0.045, 0.035); ds.push(rand(7, 15));
-    // borda iluminada voltada para as estrelas
-    w.copy(u); w.y = 0.25;
-    if (w.normalize().dot(L) > 0.25 && Math.random() < 0.55) {
-      q.copy(ax).addScaledVector(u, rr * 0.95);
-      rp.push(q.x, q.y, q.z); rc.push(1.0, 0.58, 0.3); rs.push(rand(3, 7));
-    }
-  }
-  // topos iluminados
-  for (const P of pillars) for (let i = 0; i < 400; i++) {
-    const ang = Math.random() * Math.PI * 2, r = P.r1 * Math.sqrt(Math.random());
-    rp.push(P.b.x + Math.sin(3.2) * 6 + Math.cos(ang) * r, P.b.y + rand(-1, 3), P.b.z + Math.sin(ang) * r);
-    rc.push(1.1, 0.75, 0.45); rs.push(rand(3, 6));
-  }
-  const dust = makePoints(dp, dc, ds, { additive: false, alpha: 0.75, sharp: 8 }); dust.renderOrder = 2; g.add(dust);
-  const rim = makePoints(rp, rc, rs, { alpha: 0.4 }); rim.renderOrder = 3; g.add(rim);
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: S.bhVert, fragmentShader: S.nebulaFrag,
+    uniforms: { uCenter: { value: c }, uR: { value: R }, uTime, uSteps: nebulaSteps },
+    side: THREE.BackSide, transparent: true, depthWrite: false,
+    blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor
+  });
+  const vol = new THREE.Mesh(new THREE.SphereGeometry(R, 64, 32), mat); vol.renderOrder = 1; g.add(vol);
 
   const sp = [], sc = [], ss = [];
-  for (let i = 0; i < 90; i++) {
-    sp.push(gauss() * 80, gauss() * 50 + 20, gauss() * 40 - 10);
-    const k = rand(1.5, 4); sc.push(0.9 * k, 0.95 * k, 1.2 * k); ss.push(rand(2, 5));
+  for (let i = 0; i < 140; i++) {
+    sp.push(gauss() * 75, 30 + gauss() * 40, gauss() * 45 + 25);
+    const k = rand(1.2, 3.2); sc.push(0.9 * k, 0.95 * k, 1.2 * k); ss.push(rand(1.5, 4));
   }
-  const stars = makePoints(sp, sc, ss, { sharp: 40 }); stars.renderOrder = 4; g.add(stars);
-  const hot = [V(-10, 70, 30), V(40, 60, 10), V(-70, 50, 20)];
-  for (const h of hot) { const s = glowSprite('#cfe2ff', 28, 1.4); s.position.copy(h); s.renderOrder = 5; g.add(s); }
-  const pilMk = marker(g, pillars[0].b.x + Math.sin(3.2) * 6, pillars[0].b.y + 4, pillars[0].b.z);
-  const starMk = marker(g, hot[0].x, hot[0].y, hot[0].z);
-  const gasMk = marker(g, blobs[0].p.x, blobs[0].p.y, blobs[0].p.z);
+  const stars = makePoints(sp, sc, ss, { sharp: 40, max: 3.5 }); stars.renderOrder = 4; g.add(stars);
+  const hot = [V(-10, 75, 40), V(45, 62, 30), V(-75, 55, 35)];
+  for (const h of hot) { const s = glowSprite('#cfe2ff', 20, 1.1); s.position.copy(h); s.renderOrder = 5; g.add(s); }
+  const pilMk = marker(g, -30, 46, 8), starMk = marker(g, hot[0].x, hot[0].y, hot[0].z), gasMk = marker(g, 70, 30, -20);
   bodies['nebulosa'] = {
-    center: c, dir: V(0.2, 0.12, 1), dist: 250, min: 60, max: 800, occluders: [],
+    center: c, dir: V(0.2, 0.12, 1), dist: 290, min: 40, max: 900, occluders: [],
     spots: { pillars: () => pilMk.getWorldPosition(V()), stars: () => starMk.getWorldPosition(V()), gas: () => gasMk.getWorldPosition(V()) },
     update(t) { g.rotation.y = Math.sin(t * 0.03) * 0.05; }
   };
@@ -429,14 +432,14 @@ const bodies = {};
     col.push((warm[0] + (blue[0] - warm[0]) * t) * k, (warm[1] + (blue[1] - warm[1]) * t) * k, (warm[2] + (blue[2] - warm[2]) * t) * k);
     sz.push(rand(1.4, 3.2));
   }
-  g.add(makePoints(p, col, sz, { alpha: 0.9, sharp: 18, spin: SPIN }));
+  g.add(makePoints(p, col, sz, { alpha: 0.9, sharp: 18, spin: SPIN, max: 3.5 }));
   const ND = isMobile ? 7000 : 18000, dp = [], dc = [], ds = [];
   for (let i = 0; i < ND; i++) {
     const r = 25 + Math.random() * R * 0.85, th = armAngle(Math.floor(Math.random() * 2), r) - 0.2 + gauss() * 0.06;
     dp.push(Math.cos(th) * r + gauss() * 4, gauss() * 1.4, Math.sin(th) * r + gauss() * 4);
     dc.push(0.05, 0.035, 0.03); ds.push(rand(5, 10));
   }
-  const dustP = makePoints(dp, dc, ds, { additive: false, alpha: 0.32, sharp: 9, spin: SPIN }); dustP.renderOrder = 2; g.add(dustP);
+  const dustP = makePoints(dp, dc, ds, { additive: false, alpha: 0.32, sharp: 9, spin: SPIN, max: 10 }); dustP.renderOrder = 2; g.add(dustP);
   g.add(glowSprite('#ffd9a8', 230, 0.75));
   g.add(glowSprite('#fff1dc', 50, 1.3));
   const mkBase = [[0, 0], [R * 0.36, 1], [R * 0.55, 0]].map(([r, arm]) => { const th = armAngle(arm, r); return [Math.cos(th) * r, Math.sin(th) * r, r]; });
@@ -698,10 +701,11 @@ async function shoot() {
     camera.setViewOffset(innerWidth, innerHeight, g.x, g.y, g.w, g.h);
     camera.updateProjectionMatrix();
     uPx.value = (innerHeight / 900) * (H / g.h);
+    const prevSteps = nebulaSteps.value; nebulaSteps.value = isMobile ? 64 : 110;
     sky.position.copy(camera.position);
     composer.render();
     const p = new Promise(r => renderer.domElement.toBlob(r, 'image/jpeg', 0.95));
-    camera.clearViewOffset(); resize();
+    camera.clearViewOffset(); resize(); nebulaSteps.value = prevSteps;
     blob = await p;
   } catch (err) { camera.clearViewOffset(); resize(); }
   shooting = false; shotBtn.disabled = false;
