@@ -2,7 +2,7 @@
 VOICE: cinematográfica, silenciosa, científica; o espaço é o protagonista.
 IDEA: o painel de um observatório flutuando diante do abismo.
 PICTURE: a cena 3D em tela cheia; a interface é vidro escuro e fino.
-COLOUR and TYPE: preto profundo, branco gelo, azul Doppler como acento; Unbounded + Inter.
+COLOUR and TYPE: preto profundo, branco gelo, azul Doppler como acento; Special Gothic Condensed One + Geist.
 LAYOUT: cena total, painel à direita, dock inferior; no celular, folha inferior.
 */
 :root{
@@ -13,7 +13,7 @@ LAYOUT: cena total, painel à direita, dock inferior; no celular, folha inferior
 [hidden]{display:none!important}
 *{box-sizing:border-box;min-width:0}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden}
-body{font:16px/1.55 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{font:16px/1.55 Geist,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 #scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
@@ -23,7 +23,7 @@ button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
   background:linear-gradient(180deg,rgba(3,4,9,.15) 0%,rgba(3,4,9,.35) 45%,rgba(3,4,9,.92) 100%);transition:opacity 1.2s ease,visibility 1.2s}
 .intro-in{max-width:640px}
 .kicker{color:var(--acc);font-size:14px;margin:0 0 10px;letter-spacing:.01em}
-h1{font:600 clamp(48px,9vw,112px)/1 Unbounded,sans-serif;margin:0 0 18px;letter-spacing:-.02em;text-wrap:balance}
+h1{font:400 clamp(64px,12vw,150px)/.92 'Special Gothic Condensed One',sans-serif;margin:0 0 18px;letter-spacing:0;text-transform:uppercase;text-wrap:balance}
 .lead{font-size:clamp(16px,1.6vw,19px);color:#cfd6e4;max-width:56ch;margin:0 0 26px}
 .small{font-size:13px;color:var(--muted);margin:16px 0 0}
 .btn-primary{border:0;border-radius:999px;padding:15px 30px;font-weight:600;font-size:16px;background:var(--ink);color:#05060c;min-height:48px;
@@ -36,7 +36,7 @@ body.started #intro{opacity:0;visibility:hidden}
 #top,#panel,#dock,#hint,#spots{transition:opacity .6s ease,transform .6s ease}
 body:not(.started) #top,body:not(.started) #panel,body:not(.started) #dock,body:not(.started) #hint,body:not(.started) #spots{opacity:0;pointer-events:none}
 #top{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;justify-content:space-between;align-items:center;padding:calc(16px + var(--safe-t)) max(2.4vw,14px) 0}
-.brand{font:600 18px Unbounded,sans-serif;color:var(--ink);text-decoration:none;letter-spacing:-.01em}
+.brand{font:400 22px 'Special Gothic Condensed One',sans-serif;text-transform:uppercase;letter-spacing:.02em;color:var(--ink);text-decoration:none;letter-spacing:-.01em}
 .tools{display:flex;gap:8px}
 .ico{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);display:grid;place-items:center;padding:0;transition:background .2s,border-color .2s}
 .ico:hover{background:rgba(30,36,56,.7)}
@@ -53,7 +53,7 @@ body:not(.started) #top,body:not(.started) #panel,body:not(.started) #dock,body:
 #panel.swap .type,#panel.swap h2,#panel.swap .intro-t,#panel.swap .p-body{opacity:0;transform:translateY(6px)}
 #panel .type,#panel h2,#panel .intro-t,#panel .p-body{transition:opacity .22s,transform .22s}
 .type{margin:0;color:var(--acc);font-size:13px;font-weight:500}
-#panel h2{font:600 clamp(26px,2.6vw,34px)/1.08 Unbounded,sans-serif;margin:6px 0 10px;text-wrap:balance}
+#panel h2{font:400 clamp(34px,3.4vw,46px)/1 'Special Gothic Condensed One',sans-serif;letter-spacing:.005em;margin:6px 0 10px;text-wrap:balance}
 .intro-t{margin:0 0 16px;color:#d6dcea}
 .more{display:none}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px}
@@ -98,7 +98,7 @@ body.no-panel #panel{opacity:0;transform:translateX(20px);pointer-events:none}
 @keyframes ping{0%{transform:scale(.6);opacity:1}100%{transform:scale(1.5);opacity:0}}
 body.flying #spots,body.cinema #spots{opacity:0}
 #pop{position:fixed;z-index:8;left:0;top:0;width:290px;padding:16px 18px;border-radius:16px;background:rgba(9,11,20,.82);border:1px solid var(--line);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
-#pop strong{display:block;font:600 15px Unbounded,sans-serif;margin:0 26px 6px 0}
+#pop strong{display:block;font:400 20px/1.1 'Special Gothic Condensed One',sans-serif;margin:0 26px 6px 0}
 #pop p{margin:0;font-size:14px;color:#ccd3e1}
 #pop-close{position:absolute;right:6px;top:4px;width:36px;height:36px;border:0;background:none;font-size:22px;color:var(--muted)}
 
@@ -136,10 +136,10 @@ body.photo.flash::after{content:"";position:fixed;inset:0;background:#fff;z-inde
 /* celular */
 @media (max-width:760px){
   #top{padding-top:calc(10px + var(--safe-t))}
-  .brand{font-size:16px}
+  .brand{font-size:20px}
   .tools{gap:6px}
   #panel{left:10px;right:10px;width:auto;top:auto;bottom:calc(84px + var(--safe-b));max-height:calc(var(--vh,1vh)*100 - 170px);padding:16px 16px 12px;border-radius:18px}
-  #panel h2{font-size:24px;margin:4px 0 6px}
+  #panel h2{font-size:32px;margin:4px 0 6px}
   .intro-t{font-size:14.5px;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   #panel:not(.open) .tabs,#panel:not(.open) .p-body,#panel:not(.open) .note{display:none}
   #panel.open .intro-t{-webkit-line-clamp:unset;display:block}
