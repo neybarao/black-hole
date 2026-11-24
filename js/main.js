@@ -96,7 +96,8 @@ function glowShell(center, r, width, color, pow = 2.2, scale = 1) {
     uniforms: { uCenter: { value: center }, uR: { value: r }, uW: { value: width }, uColor: { value: V(...color).multiplyScalar(scale) }, uPow: { value: pow } },
     side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
   });
-  return new THREE.Mesh(new THREE.SphereGeometry(r + width, 64, 32), m);
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(r + width, 64, 32), m);
+  mesh.position.copy(center); return mesh;
 }
 
 const marker = (parent, x, y, z) => { const o = new THREE.Object3D(); o.position.set(x, y, z); parent.add(o); return o; };
@@ -441,6 +442,7 @@ const bodies = {};
 
 // ---------------------------------------------------------------- UI
 const $ = s => document.querySelector(s);
+const T = k => ({ photoWorking: 'Gerando imagem em alta resolução…', photoSaved: 'Imagem salva:', photoFail: 'Não foi possível gerar a imagem neste dispositivo.' })[k];
 const panel = $('#panel'), chips = $('#chips'), spotsEl = $('#spots'), pop = $('#pop');
 let current = null, flight = null, tab = 'how', lastInteract = performance.now();
 
@@ -514,7 +516,7 @@ $('#exit-cinema').onclick = () => { document.body.classList.remove('cinema'); co
 addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') step(1);
   else if (e.key === 'ArrowLeft') step(-1);
-  else if (e.key === 'Escape') { closePop(); document.body.classList.remove('cinema'); }
+  else if (e.key === 'Escape') { closePop(); document.body.classList.remove('cinema'); if (document.body.classList.contains('photo')) setPhoto(false); }
 });
 addEventListener('hashchange', () => { const id = location.hash.slice(1); if (id !== current && bodies[id]) select(id); });
 
@@ -567,6 +569,82 @@ $('#sound').onclick = () => {
   $('#sound').setAttribute('aria-pressed', audio.on);
 };
 
+
+// ---------------------------------------------------------------- modo foto
+const RATIOS = { '16:9': [3840, 2160], '9:16': [2160, 3840], '21:9': [5040, 2160] };
+let ratio = innerWidth >= innerHeight ? '16:9' : '9:16', photoPaused = false, shooting = false;
+const frameEl = $('#frame'), phStatus = $('#ph-status'), shotBtn = $('#ph-shot');
+const gl = renderer.getContext();
+const maxDim = Math.min(renderer.capabilities.maxTextureSize, gl.getParameter(gl.MAX_RENDERBUFFER_SIZE), ...gl.getParameter(gl.MAX_VIEWPORT_DIMS));
+function outSize() {
+  let [w, h] = RATIOS[ratio];
+  const k = Math.min(1, maxDim / Math.max(w, h));
+  return [Math.floor(w * k / 2) * 2, Math.floor(h * k / 2) * 2];
+}
+function guideRect() {
+  const [w, h] = outSize(), a = w / h, small = innerWidth < 760;
+  const mx = small ? 12 : 48, top = small ? 56 : 64, bottom = small ? 170 : 120;
+  const aw = innerWidth - mx * 2, ah = innerHeight - top - bottom;
+  let gw = aw, gh = gw / a; if (gh > ah) { gh = ah; gw = gh * a; }
+  return { x: (innerWidth - gw) / 2, y: top + (ah - gh) / 2, w: gw, h: gh };
+}
+function layoutPhoto() {
+  const g = guideRect();
+  Object.assign(frameEl.style, { width: g.w + 'px', height: g.h + 'px', transform: `translate(${g.x}px,${g.y}px)` });
+  document.querySelectorAll('.ratio').forEach(b => {
+    b.setAttribute('aria-checked', b.dataset.r === ratio);
+    if (b.dataset.r === ratio) { const [w, h] = outSize(); b.querySelector('small').textContent = `${w}×${h}`; }
+  });
+}
+function setPhoto(on) {
+  document.body.classList.toggle('photo', on);
+  closePop(); controls.autoRotate = false; lastInteract = performance.now();
+  if (on) layoutPhoto();
+  else if (photoPaused) $('#ph-pause').click();
+}
+$('#photo-btn').onclick = () => setPhoto(true);
+$('#ph-exit').onclick = () => setPhoto(false);
+document.querySelectorAll('.ratio').forEach(b => b.onclick = () => { ratio = b.dataset.r; layoutPhoto(); });
+$('#ph-pause').onclick = e => { photoPaused = !photoPaused; e.currentTarget.setAttribute('aria-pressed', photoPaused); };
+shotBtn.onclick = shoot;
+
+async function shoot() {
+  if (shooting) return;
+  shooting = true; shotBtn.disabled = true; phStatus.textContent = T('photoWorking');
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const [W, H] = outSize(), g = guideRect();
+  let blob = null;
+  try {
+    renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+    composer.setPixelRatio(1); composer.setSize(W, H);
+    camera.aspect = innerWidth / innerHeight;
+    camera.setViewOffset(innerWidth, innerHeight, g.x, g.y, g.w, g.h);
+    camera.updateProjectionMatrix();
+    uPx.value = (innerHeight / 900) * (H / g.h);
+    sky.position.copy(camera.position);
+    composer.render();
+    const p = new Promise(r => renderer.domElement.toBlob(r, 'image/jpeg', 0.95));
+    camera.clearViewOffset(); resize();
+    blob = await p;
+  } catch (err) { camera.clearViewOffset(); resize(); }
+  shooting = false; shotBtn.disabled = false;
+  if (!blob) { phStatus.textContent = T('photoFail'); setTimeout(() => phStatus.textContent = '', 3500); return; }
+  document.body.classList.remove('flash'); void document.body.offsetWidth; document.body.classList.add('flash');
+  const name = `horizonte-${current}-${W}x${H}.jpg`;
+  const file = new File([blob], name, { type: 'image/jpeg' });
+  let done = false;
+  if (isMobile && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: 'Horizonte' }); done = true; } catch (e) { done = e.name === 'AbortError'; }
+  }
+  if (!done) {
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  phStatus.textContent = T('photoSaved') + ` ${W}×${H}`;
+  setTimeout(() => phStatus.textContent = '', 3000);
+}
+
 // ---------------------------------------------------------------- loop
 const camBasis = { up: V(), right: V(), toCam: V() };
 const proj = V(), seg = V(), oc = V();
@@ -600,7 +678,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   if (document.hidden) return;
   const dt = Math.min(clock.getDelta(), 0.1);
-  if (!reduceMotion) uTime.value += dt;
+  if (!reduceMotion && !photoPaused) uTime.value += dt;
   const t = uTime.value;
 
   if (flight) {
@@ -612,7 +690,7 @@ function frame(now) {
     camera.lookAt(controls.target);
     if (k >= 1) finishFlight(flight.b);
   } else if (controls.enabled) {
-    if (!controls.autoRotate && !reduceMotion && now - lastInteract > 9000) controls.autoRotate = true;
+    if (!controls.autoRotate && !reduceMotion && !document.body.classList.contains('photo') && now - lastInteract > 9000) controls.autoRotate = true;
     controls.update();
   }
 
@@ -641,6 +719,7 @@ function resize() {
   composer.setPixelRatio(pixelRatio);
   composer.setSize(innerWidth, innerHeight);
   uPx.value = pixelRatio * (innerHeight / 900);
+  if (document.body.classList.contains('photo')) layoutPhoto();
 }
 addEventListener('resize', resize);
 
