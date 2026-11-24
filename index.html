@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Horizonte — buracos negros e outros abismos do cosmos</title>
+<title>Horizon — buracos negros e outros abismos do cosmos</title>
 <meta id="meta-desc" name="description" content="Explore em 3D um buraco negro, um pulsar, Betelgeuse, uma anã branca, um berçário estelar e uma galáxia espiral. Descubra como funcionam e tire fotos em 4K.">
 <meta name="theme-color" content="#030409">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Special+Gothic+Condensed+One&family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=7">
 <script type="importmap">
 { "imports": {
   "three": "./vendor/three/build/three.module.js",
@@ -24,7 +24,7 @@
 <section id="intro">
   <div class="intro-in">
     <p class="kicker" data-i18n="kicker">Uma viagem pelos objetos mais extremos do Universo</p>
-    <h1>Horizonte</h1>
+    <h1>Horizon</h1>
     <p class="lead" data-i18n="lead">Chegue perto de um buraco negro, veja a luz se curvar, atravesse o feixe de um pulsar e descubra como funcionam os corpos celestes mais intrigantes que conhecemos.</p>
     <div class="langs" role="group" aria-label="Idioma"><button data-lang="pt">PT</button><button data-lang="en">EN</button><button data-lang="es">ES</button></div>
     <button id="start" class="btn-primary" data-i18n="start">Iniciar viagem</button>
@@ -33,10 +33,10 @@
 </section>
 
 <header id="top">
-  <a class="brand" href="#buraco-negro" aria-label="Horizonte">Horizonte</a>
+  <a class="brand" href="#buraco-negro" aria-label="Horizon">Horizon</a>
   <div class="tools">
     <div class="lang-wrap"><button id="lang" class="ico lang-btn" data-i18n-aria="lang" aria-haspopup="true" aria-expanded="false">PT</button>
-      <div id="lang-menu" hidden><button data-lang="pt">Português</button><button data-lang="en">English</button><button data-lang="es">Español</button></div></div>
+      <div id="lang-menu" class="lg" data-r="26" hidden><button data-lang="pt">Português</button><button data-lang="en">English</button><button data-lang="es">Español</button></div></div>
     <button id="sound" data-i18n-aria="sound" class="ico" aria-pressed="false" title="Som ambiente" aria-label="Som ambiente">
       <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="w" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>
     </button>
@@ -52,7 +52,7 @@
   </div>
 </header>
 
-<aside id="panel" aria-live="polite">
+<aside id="panel" class="lg" data-r="44" aria-live="polite">
   <p id="p-type" class="type"></p>
   <h2 id="p-name"></h2>
   <p id="p-intro" class="intro-t"></p>
@@ -67,7 +67,7 @@
 </aside>
 
 <div id="spots"></div>
-<div id="pop" hidden>
+<div id="pop" class="lg" data-r="34" hidden>
   <button id="pop-close" data-i18n-aria="close" aria-label="Fechar">×</button>
   <strong id="pop-t"></strong>
   <p id="pop-x"></p>
@@ -77,7 +77,7 @@
 
 <nav id="dock" aria-label="Corpos celestes">
   <button id="prev" data-i18n-aria="prev" class="ico" aria-label="Anterior"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
-  <div id="chips"></div>
+  <div class="chips-wrap lg" data-r="30"><div id="chips"></div></div>
   <button id="next" data-i18n-aria="next" class="ico" aria-label="Próximo"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
 </nav>
 
@@ -85,7 +85,7 @@
 
 <section id="photo" aria-label="Modo foto">
   <div id="frame"><span class="third v1"></span><span class="third v2"></span><span class="third h1"></span><span class="third h2"></span></div>
-  <div class="ph-bar">
+  <div class="ph-bar lg" data-r="34">
     <div class="ph-ratios" role="radiogroup" aria-label="Formato">
       <button class="ratio" data-r="16:9" role="radio">16:9<small>3840×2160</small></button>
       <button class="ratio" data-r="9:16" role="radio">9:16<small>2160×3840</small></button>
@@ -96,8 +96,9 @@
     <button id="ph-exit" class="ph-opt" data-i18n="exit">Sair</button>
   </div>
   <p id="ph-status" role="status"></p>
+  <button id="ph-save" class="ph-opt ph-save" data-i18n="saveImage" hidden></button>
 </section>
 
-<script type="module" src="js/main.js"></script>
+<script type="module" src="js/main.js?v=7"></script>
 </body>
 </html>

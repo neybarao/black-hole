@@ -1,4 +1,4 @@
-# Horizonte
+# Horizon
 
 Site 3D e interativo sobre buracos negros e outros corpos celestes intrigantes: pulsar, Betelgeuse, anã branca, berçário estelar e galáxia espiral.
 

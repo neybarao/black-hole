@@ -4,11 +4,11 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import * as S from './shaders.js';
-import { CONTENT as CONTENT_PT, ORDER } from './content.js';
-import { CONTENT_EN } from './content-en.js';
-import { CONTENT_ES } from './content-es.js';
-import { UI, LANG_NAMES, detectLang } from './i18n.js';
+import * as S from './shaders.js?v=7';
+import { CONTENT as CONTENT_PT, ORDER } from './content.js?v=7';
+import { CONTENT_EN } from './content-en.js?v=7';
+import { CONTENT_ES } from './content-es.js?v=7';
+import { UI, LANG_NAMES, detectLang } from './i18n.js?v=7';
 const LANGS = { pt: CONTENT_PT, en: CONTENT_EN, es: CONTENT_ES };
 let lang = detectLang();
 let CONTENT = LANGS[lang];
@@ -446,6 +446,41 @@ const bodies = {};
   };
 }
 
+
+// ---------------------------------------------------------------- squircle (superelipse) para o vidro líquido
+function squirclePath(w, h, r, inset = 0, n = 4.6) {
+  r = Math.max(0, Math.min(r, w / 2, h / 2) - inset);
+  const x0 = inset, y0 = inset, x1 = w - inset, y1 = h - inset, f = v => Math.sign(v) * Math.abs(v) ** (2 / n);
+  const cs = [[x1 - r, y0 + r, -0.5], [x1 - r, y1 - r, 0], [x0 + r, y1 - r, 0.5], [x0 + r, y0 + r, 1]];
+  let d = '';
+  for (const [cx, cy, a0] of cs) for (let i = 0; i <= 14; i++) {
+    const t = (a0 + i / 28) * Math.PI;
+    d += (d ? 'L' : 'M') + (cx + r * f(Math.cos(t))).toFixed(2) + ' ' + (cy + r * f(Math.sin(t))).toFixed(2);
+  }
+  return d + 'Z';
+}
+let rimId = 0;
+const squircleRO = new ResizeObserver(entries => {
+  for (const e of entries) {
+    const el = e.target, w = el.offsetWidth, h = el.offsetHeight;
+    if (!w || !h) continue;
+    const r = +el.dataset.r * (innerWidth < 760 ? 0.85 : 1);
+    el.style.clipPath = `path('${squirclePath(w, h, r)}')`;
+    const svg = el.querySelector(':scope > .rim');
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.querySelector('.p1').setAttribute('d', squirclePath(w, h, r, 0.75));
+    svg.querySelector('.p2').setAttribute('d', squirclePath(w, h, r, 2.5));
+  }
+});
+document.querySelectorAll('.lg').forEach(el => {
+  const id = 'rim' + rimId++;
+  el.insertAdjacentHTML('beforeend', `<svg class="rim" aria-hidden="true" preserveAspectRatio="none"><defs>
+    <linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".75"/><stop offset=".3" stop-color="#fff" stop-opacity=".12"/><stop offset=".62" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#fff" stop-opacity=".4"/></linearGradient>
+    <linearGradient id="${id}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".1"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#bcd2ff" stop-opacity=".12"/></linearGradient></defs>
+    <path class="p2" fill="none" stroke="url(#${id}b)" stroke-width="3"/><path class="p1" fill="none" stroke="url(#${id})" stroke-width="1.5"/></svg>`);
+  squircleRO.observe(el);
+});
+
 // ---------------------------------------------------------------- UI
 const $ = s => document.querySelector(s);
 const T = k => UI[lang][k] ?? UI.pt[k];
@@ -458,7 +493,7 @@ function renderChips() {
 
 function applyLang(l) {
   lang = l; CONTENT = LANGS[l];
-  try { localStorage.setItem('horizonte-lang', l); } catch (e) {}
+  try { localStorage.setItem('horizon-lang', l); } catch (e) {}
   document.documentElement.lang = l === 'pt' ? 'pt-BR' : l;
   document.title = T('title');
   $('#meta-desc')?.setAttribute('content', T('desc'));
@@ -659,11 +694,20 @@ async function shoot() {
   shooting = false; shotBtn.disabled = false;
   if (!blob) { phStatus.textContent = T('photoFail'); setTimeout(() => phStatus.textContent = '', 3500); return; }
   document.body.classList.remove('flash'); void document.body.offsetWidth; document.body.classList.add('flash');
-  const name = `horizonte-${current}-${W}x${H}.jpg`;
+  const name = `horizon-${current}-${W}x${H}.jpg`;
   const file = new File([blob], name, { type: 'image/jpeg' });
   let done = false;
   if (isMobile && navigator.canShare?.({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: 'Horizonte' }); done = true; } catch (e) { done = e.name === 'AbortError'; }
+    try { await navigator.share({ files: [file], title: 'Horizon' }); done = true; }
+    catch (e) {
+      if (e.name === 'AbortError') done = true;
+      else if (e.name === 'NotAllowedError') {
+        // o Safari exige um novo toque depois de uma renderização demorada
+        const btn = $('#ph-save'); btn.hidden = false; phStatus.textContent = T('photoReady') + ` ${W}×${H}`;
+        btn.onclick = async () => { btn.hidden = true; try { await navigator.share({ files: [file], title: 'Horizon' }); } catch (err) {} phStatus.textContent = ''; };
+        return;
+      }
+    }
   }
   if (!done) {
     const url = URL.createObjectURL(blob), a = document.createElement('a');
